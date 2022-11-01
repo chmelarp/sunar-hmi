@@ -1,0 +1,222 @@
+/**
+ * OpenCV library extension of FFMPEG
+ *
+ * Copyright (C) 2008 Petr Chmelar
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+#ifndef _CVFFMPEG_H
+#define	_CVFFMPEG_H
+
+// use common abbrevs
+#include "abbrevs.h"
+    
+#ifdef	__cplusplus
+
+extern "C" {
+#endif
+    
+#define __STDC_CONSTANT_MACROS
+// #define __STDC_LIMIT_MACROS
+
+#include <libavformat/avformat.h>    // for newer (5.2+) use <libavformat/avformat.h>
+#include <libavcodec/avcodec.h>     // <libavcodec/avcodec.h>
+#include <libswscale/swscale.h>     // <libswscale/swscale.h>
+    
+/**
+ * OpenCV specific abbreviations
+ *
+ */
+#include <opencv/cv.h>
+#include <opencv/highgui.h>
+
+    
+// colors
+#define cvWhite  CV_RGB(255,255,255)
+#define cvGray   CV_RGB(128,128,128)
+#define cvBlack  CV_RGB(000,000,000)
+
+#define cvRed    CV_RGB(255,000,000)
+#define cvPink   CV_RGB(255,128,128)
+#define cvOrange CV_RGB(255,128,000)
+#define cvYellow CV_RGB(255,255,000)
+#define cvGreen  CV_RGB(000,255,000)
+#define cvAqua   CV_RGB(000,128,255)
+#define cvBlue   CV_RGB(000,000,255)
+
+
+// draw a cross
+#define cvCross( img, x, y, color, dim, wid )                  \
+    cvLine( img, cvPoint( x - dim, y       ),                  \
+                 cvPoint( x + dim, y       ), color, wid, 0 ); \
+    cvLine( img, cvPoint( x      , y - dim ),                  \
+                 cvPoint( x      , y + dim ), color, wid, 0 )
+
+#define cvCross10( img, x, y )                                 \
+    cvLine( img, cvPoint( x - 11, y      ),                    \
+                 cvPoint( x + 11, y      ), cvYellow, 1, 0 );  \
+    cvLine( img, cvPoint( x     , y - 11 ),                    \
+                 cvPoint( x     , y + 11 ), cvYellow, 1, 0 )
+
+
+    /**
+     * The media structure
+     */
+    typedef struct ffMedia {
+    // public
+        // frame in original colorspace (unknown, usually YUV420)
+        AVFrame*            ffFrame;
+        
+    // private
+        AVFormatContext*    formatCtx;
+        int                 videoStream;
+        AVCodecContext*     codecCtx;
+        AVCodec*            codec;
+        
+        boolean             ffEof;
+        
+        #ifdef SWSCALE_SWSCALE_H
+            struct ffSWS*          sws;
+        #endif
+
+    } ffMedia;
+
+
+    /*
+     * Constructor
+     */
+    ffMedia* newMedia();
+    
+    /**
+     * Opens a media file and returns true if succeed
+     */
+    boolean ffOpenFile(ffMedia* media, const char* filename);
+    
+    // TODO:
+    boolean ffOpenCapture();
+    boolean ffOpenIEEE1349();
+        
+    /**
+     * Closes a media file
+     */
+    void ffClose(ffMedia* media);
+    
+    /**
+     * Returns the actual frame position
+     */
+    unsigned long ffPosition(ffMedia* media);
+    
+    /**
+     * Returns the total number of frames in the video (recheck while playing!)
+     */
+    unsigned long ffLength(ffMedia* media);
+
+    /**
+     * Return the next frame or null if finished
+     */
+    AVFrame* ffAvFrame(ffMedia* media);
+
+    /**
+     * Seek to a specified position and return the frame
+     */
+    AVFrame* ffAvFrameSeek(ffMedia* media, unsigned long position);
+    
+    /**
+     * Seek to a specified position (precisely but slowly) and return the frame
+     */
+    AVFrame* ffAvFramePreciseSeek(ffMedia* media, unsigned long position);
+
+    /**
+     * Save a frame and return true
+     */
+    boolean ffSaveFrame(AVFrame *pFrame, int width, int height, const char* filename);
+
+    
+    
+#ifdef SWSCALE_SWSCALE_H
+
+    typedef struct ffSWS {
+    // public
+        int width;          // final width
+        int height;         // and heigth
+        int format;         // e.g. PIX_FMT_RGBA32, PIX_FMT_YUV422
+        int flag;           // e.g. SWS_FAST_BILINEAR, SWS_BICUBIC
+        
+        // frame in SWS colorspace (... usually RGB32)
+        AVFrame*            swsFrame;   
+
+    // private
+        int                 numBytes;
+        uint8_t*            buffer;
+        struct SwsContext*  imgConvertCtx;
+
+        #ifdef __OPENCV_CV_H__
+            IplImage*           cvFrame;
+        #endif // CV
+    
+    } ffSWS;
+    
+    /**
+     * Constructor (initialize when opening file or resampling)
+     * ffSWS* sws = ffSWSInit(1280, 1028, PIX_FMT_RGBA32, SWS_BICUBIC);
+     */
+    ffSWS* ffSWSInit(int w, int h, int f, int t);
+
+    /**
+     * Destructor, you can call free then
+     */
+    void ffSWSClose(ffSWS* sws);
+    
+    
+    /**
+     * Convert the actual frame to the IplImage or return null if none
+     */
+    AVFrame* ffConvert(ffMedia* media, ffSWS* sws);
+
+//    AVFrame* ffConvert(ffSWS* media, int width, int height, int format, int flag);
+//  AVFrame* ffConvert(ffMedia* media, int width, int height, int format, int flag);
+//  AVFrame* ffConvert(ffMedia* media) { return ffConvert(media, 0, 0, PIX_FMT_RGBA32, SWS_FAST_BILINEAR); };
+
+#ifdef __OPENCV_CV_H__
+    /**
+     * Return the next frame or null if finished
+     */
+    IplImage* ffCvFrame(ffMedia* media);
+    
+    /**
+     * Seek to a specified position and return the frame
+     */
+    IplImage* ffCvFrameSeek(ffMedia* media, unsigned long position);
+
+    /**
+     * Seek to a specified position (precisely but slowly) and return the frame
+     */
+    IplImage* ffCvFramePreciseSeek(ffMedia* media, unsigned long position);
+    
+    /**
+     * Convert the actual frame to the IplImage or return null if none
+     * Implicitly, it converts into 32bit BGRA
+     */
+    IplImage* ffCvConvert(ffMedia* media, ffSWS* sws);
+    
+#endif // CV
+#endif // SWS
+    
+        
+#ifdef	__cplusplus
+    }
+#endif
+    
+#endif	/* _CVFFMPEG_H */

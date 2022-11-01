@@ -1,0 +1,26 @@
+/**
+ * C / C++ abbreviations
+ *
+ * Author: Petr Chmelar (c) 2008 
+ * License: GNU/GPL and Intel CV
+ */
+
+#include <stdio.h>
+#include <stdlib.h>
+
+#include "abbrevs.h"
+
+// A nice C itoa (not a part of the ANSI C standard)
+char* itoa(int val, char* buf, int base) {
+	if (buf == null) buf = alloc(char, 32);
+    sprintf(buf, "%d", val);
+	return buf;
+}
+
+// A nice C ftoa (not a part of the ANSI C standard)
+char* ftoa(double val, char* buf, int base) {
+	if (buf == null) buf = alloc(char, 32);
+    sprintf(buf, "%f", val);
+	return buf;
+}
+
